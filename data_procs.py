@@ -13,8 +13,8 @@ def preprocess(path,training,vocab):
     all_sents = []
     # loop through paragraphs, skip headers, and split into sentences
     file = open(path, "r")
-    for line in file.readlines():
-        end_sent = False
+    lines = file.read().split('.')
+    for line in lines:
         line = line.strip()
         if not line:
             continue
@@ -23,22 +23,13 @@ def preprocess(path,training,vocab):
         elif line.startswith('='):
             continue
         else:
-            # sentence = [SOS]
-            sentence = []                
-            for word in line.split():
-                # dont include puncuation
-                if word not in punc:
-                    p_word = process(word, lower=True)
-                    sentence.append(p_word)
-                
-            # update vocab if training set
+            sentence = [process(word,lower=True) for word in line.split() if word not in punc]               
             if training:
                 vocab.update(sentence)
             final_sent = [word if word in vocab else UNK for word in sentence]
             # add end token 
             # final_sent.append(EOS)
             all_sents.append(final_sent)
-            sentence = []
                     
             
     return all_sents,vocab
@@ -55,12 +46,12 @@ if __name__ == '__main__':
         file1.truncate(0)
         for sentence in newtraincorpus:
             sent = " ".join(sentence)
-            file1.write(sent)       
+            file1.write(sent+'\n')       
                 
     with open('newtestcorpus.txt', "w") as file2:
         file2.truncate(0)
         for sentence in newtraincorpus:
-            file2.write(" ".join(sentence))        
+            file2.write(" ".join(sentence)+'\n')        
             
-    print(newtraincorpus[:100])
+    # print(file1])
 
