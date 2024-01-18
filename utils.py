@@ -1,10 +1,13 @@
-import unicodedata
+import string
+
+punc = string.punctuation
 
 SOS = '<s>'
 EOS = '</s>'
 UNK = '<unk>'
 YEAR = '<year>'
 NUM = '<num>'
+TOKENS = [SOS, EOS, UNK, YEAR, NUM]
 
 EPS = 1e-8
 
@@ -17,27 +20,7 @@ def is_year(s):
 
 
 def is_number(s):
-    s = s.replace(',', '')   # 10,000 -> 10000
-    s = s.replace(':', '')   # 5:30 -> 530
-    s = s.replace('-', '')   # 17-08 -> 1708
-    s = s.replace('/', '')   # 17/08/1992 -> 17081992
-    s = s.replace('th', '')  # 20th -> 20
-    s = s.replace('rd', '')  # 93rd -> 20
-    s = s.replace('nd', '')  # 22nd -> 20
-    s = s.replace('m', '')   # 20m -> 20
-    s = s.replace('s', '')   # 20s -> 20
-    try:
-        float(s)
-        return True
-    except ValueError:
-        pass
-    try:
-        unicodedata.numeric(s)
-        return True
-    except (TypeError, ValueError):
-        pass
-    return False
-
+    return any(char.isdigit() for char in s)
 
 def num(word):
     if is_number(word):
@@ -52,10 +35,28 @@ def year(word):
     else:
         return word
 
+def isalpha(word):
+    word_copy = word.replace("-", "")
+    word_copy = word_copy.replace(".", "")
+    return word_copy.isalpha()
 
-def process(word, lower=False):
+def process_word(word, lower=True, mask_year=True, mask_nums=True, filter_punc=True):
+    if filter_punc and word in punc:
+        word = ""
     if lower:
         word = word.lower()
-    word = year(word)  # Turns into <year> if applicable.
-    word = num(word)   # Turns into <num> if applicable.
+    if mask_year:
+        word = year(word)  # Turns into <year> if applicable.
+    if mask_nums:
+        word = num(word)   # Turns into <num> if applicable.
+    if word not in TOKENS and not isalpha(word):
+        word = ""
     return word
+
+def process_sentence(sentence):
+    sentence = sentence.replace(" @-@ ", "-")
+    sentence = sentence.replace(" @.@ ", ".")
+
+    words = [process_word(word) for word in sentence.split() if word not in punc]
+
+    return words
