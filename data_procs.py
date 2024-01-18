@@ -18,7 +18,7 @@ def preprocess(path, training, vocab):
         elif line.startswith('='):
             continue
         else:
-            words = process_sentence(line)
+            words = process_sentence(line, lower=False, mask_year=False, mask_nums=False)
             if training:
                 vocab.update(words)
             final_sent = [word if word in vocab else UNK for word in words]
