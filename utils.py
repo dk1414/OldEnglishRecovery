@@ -38,9 +38,22 @@ def year(word):
 def isalpha(word):
     word_copy = word.replace("-", "")
     word_copy = word_copy.replace(".", "")
+    word_copy = word_copy.replace("'", "")
     return word_copy.isalpha()
 
 def process_word(word, lower=True, mask_year=True, mask_nums=True, filter_punc=True):
+    """Performs relevant manipulations at the word level
+
+    Args:
+        word (str): word to be manipulated
+        lower (bool, optional): Convert word to lowercase. Defaults to True.
+        mask_year (bool, optional): Turn all years into a special YEAR token. Defaults to True.
+        mask_nums (bool, optional): Turn all words containing digits into a special NUM token. Defaults to True.
+        filter_punc (bool, optional): Removes all punctuation. Defaults to True.
+
+    Returns:
+        str: The manpulated word
+    """
     if filter_punc and word in punc:
         word = ""
     if lower:
@@ -49,14 +62,16 @@ def process_word(word, lower=True, mask_year=True, mask_nums=True, filter_punc=T
         word = year(word)  # Turns into <year> if applicable.
     if mask_nums:
         word = num(word)   # Turns into <num> if applicable.
-    if word not in TOKENS and not isalpha(word):
-        word = ""
+    # if word not in TOKENS and not isalpha(word):
+    #     word = ""
     return word
 
-def process_sentence(sentence):
+def process_sentence(sentence, **kwargs):
     sentence = sentence.replace(" @-@ ", "-")
     sentence = sentence.replace(" @.@ ", ".")
+    sentence = sentence.replace(" @,@ ", ",")
+    sentence = sentence.replace(" 's", "'s")
 
-    words = [process_word(word) for word in sentence.split() if word not in punc]
+    words = [process_word(word, **kwargs) for word in sentence.split() if word not in punc]
 
     return words
