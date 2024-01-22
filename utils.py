@@ -4,7 +4,7 @@ punc = string.punctuation
 
 SOS = '<s>'
 EOS = '</s>'
-UNK = '<unk>'
+UNK = '〇'
 YEAR = '<year>'
 NUM = '<num>'
 TOKENS = [SOS, EOS, UNK, YEAR, NUM]
@@ -71,6 +71,8 @@ def process_sentence(sentence, **kwargs):
     sentence = sentence.replace(" @.@ ", ".")
     sentence = sentence.replace(" @,@ ", ",")
     sentence = sentence.replace(" 's", "'s")
+    sentence = sentence.replace(" ' ", "'")
+    sentence = sentence.replace(" – ", "–")
 
     words = [process_word(word, **kwargs) for word in sentence.split() if word not in punc]
 

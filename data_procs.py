@@ -18,12 +18,11 @@ def preprocess(path, training, vocab):
         elif line.startswith('='):
             continue
         else:
-            words = process_sentence(line, lower=False, mask_year=False, mask_nums=False)
+            words = process_sentence(line, lower=True, mask_year=False, mask_nums=False)
             if training:
-                vocab.update(words)
-            final_sent = [word if word in vocab else UNK for word in words]
-            # add end token 
-            # final_sent.append(EOS)
+                vocab.update(set(" ".join(words)))
+            # oh my god i've made a mistake
+            final_sent = [''.join(char if char in vocab else UNK for char in word) for word in words]
             all_sents.append(final_sent)
                       
     return all_sents, vocab
