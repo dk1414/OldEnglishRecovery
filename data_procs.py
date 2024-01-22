@@ -12,7 +12,7 @@ def preprocess(path,training,vocab):
     # vocab = set()
     all_sents = []
     # loop through paragraphs, skip headers, and split into sentences
-    file = open(path, "r")
+    file = open(path, "r", encoding="utf8")
     lines = file.read().split('.')
     for line in lines:
         line = line.strip()
@@ -42,15 +42,15 @@ if __name__ == '__main__':
     newtraincorpus,t_vocab = preprocess('data/original/wiki.train.raw', True,set())
     newtestcorpus,vocab = preprocess('data/original/wiki.test.raw',False,t_vocab)
     
-    with open('newtraincorpus.txt', "w") as file1:
+    with open('newtraincorpus.txt', "w", encoding="utf8") as file1:
         file1.truncate(0)
         for sentence in newtraincorpus:
             sent = " ".join(sentence)
             file1.write(sent+'\n')       
                 
-    with open('newtestcorpus.txt', "w") as file2:
+    with open('newtestcorpus.txt', "w", encoding="utf8") as file2:
         file2.truncate(0)
-        for sentence in newtraincorpus:
+        for sentence in newtestcorpus:
             file2.write(" ".join(sentence)+'\n')        
             
     # print(file1])
