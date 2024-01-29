@@ -1,14 +1,15 @@
 import dill as pickle
 from nltk.lm.preprocessing import padded_everygram_pipeline
-from nltk.lm import MLE, Laplace
+from nltk.lm import models, api
+from nltk.lm import *
 from nltk.util import *
 
 TEST = "corpi/test.txt"
 TRAIN = "corpi/train.txt"
 
-NGRAM_ORDER = 4
+NGRAM_ORDER = 2
 
-def train_model(path_to_save: str):
+def train_model(model: api.LanguageModel, path_to_save: str):
     text = []
     with open(TRAIN, "r", encoding="utf-8") as train_file:
         for line in train_file:
@@ -16,13 +17,13 @@ def train_model(path_to_save: str):
             text.append([*line])
 
     train, vocab = padded_everygram_pipeline(NGRAM_ORDER, text)
-    lm = Laplace(NGRAM_ORDER)
+    lm = model(NGRAM_ORDER)
     lm.fit(train, vocab)
 
     with open(path_to_save, "wb") as fout:
         pickle.dump(lm, fout)
 
-def perplexity(model: Laplace, path_to_file: str):
+def perplexity(model: api.LanguageModel, path_to_file: str):
     gram = []
     with open(path_to_file, "r", encoding="utf-8") as test_file:
         for line in test_file:
@@ -35,11 +36,11 @@ def perplexity(model: Laplace, path_to_file: str):
     return model.perplexity(gram)
 
 if __name__ == '__main__':
-    # train_model('models/laplace-4gram.pkl')
+    train_model(KneserNeyInterpolated, 'models/kneserney-bigram.pkl')
 
-    with open('models/laplace-4gram.pkl', 'rb') as fin:
+    with open('models/kneserney-bigram.pkl', 'rb') as fin:
         model = pickle.load(fin)
         print(len(model.vocab))
-        print("".join(model.generate(30)))
+        print("".join(model.generate(text_seed=[*'displacemen'])))
         print("train perplexity", perplexity(model, TRAIN))
         print("test  perplexity", perplexity(model, TEST))
