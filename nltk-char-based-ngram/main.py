@@ -7,7 +7,7 @@ from nltk.util import *
 TEST = "corpi/test.txt"
 TRAIN = "corpi/train.txt"
 
-NGRAM_ORDER = 2
+NGRAM_ORDER = 3
 
 def train_model(model: api.LanguageModel, path_to_save: str):
     text = []
@@ -36,9 +36,9 @@ def perplexity(model: api.LanguageModel, path_to_file: str):
     return model.perplexity(gram)
 
 if __name__ == '__main__':
-    train_model(KneserNeyInterpolated, 'models/kneserney-bigram.pkl')
+    # train_model(KneserNeyInterpolated, 'models/kneserney-3gram.pkl')
 
-    with open('models/kneserney-bigram.pkl', 'rb') as fin:
+    with open('models/kneserney-3gram.pkl', 'rb') as fin:
         model = pickle.load(fin)
         print(len(model.vocab))
         print("".join(model.generate(text_seed=[*'displacemen'])))
