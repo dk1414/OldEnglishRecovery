@@ -1,7 +1,8 @@
 import numpy as np
+import random
 
 class LanguageModelHelper:
-    def __init__(self, vocab=None, word_frequency_map=None, file_path=None, min_freq=5):
+    def __init__(self, vocab=None, word_frequency_map=None, file_path=None, min_freq=5, unk_token = '[UNK]'):
         """
         Initialize the LanguageModel with a given text file.
 
@@ -13,6 +14,8 @@ class LanguageModelHelper:
         """
 
         self.min_freq = min_freq
+        self.unk = unk_token
+        self.file_path = file_path
 
         if file_path != None:
             v, f = self._generate_vocabulary(file_path)
@@ -45,7 +48,7 @@ class LanguageModelHelper:
     
 
 
-        UNK_symbol = "<UNK>" #unknown token
+        UNK_symbol = self.unk #unknown token
         vocab = set([UNK_symbol])
 
         # create term frequency of the words
@@ -64,7 +67,7 @@ class LanguageModelHelper:
         
         return vocab, words_term_frequency_train
 
-    def find_candidates(self, word, missing_token="@"):
+    def find_candidates(self, word, missing_token="¿"):
 
         """
         Given a word with missing characters, return all possible candidate words in vocabulary.
@@ -97,6 +100,86 @@ class LanguageModelHelper:
                     raise Exception
 
         return candidates
+
+
+    def get_dataset(self):
+        '''
+        Returns list of lists of strings where each sublist represents a line of text.
+        
+        '''
+        if not self.file_path:
+            raise Exception("No file path provided when initializing Class instance")
+        text = []
+
+        #read text to list. text will end up being a list of lists of words
+        with open(self.file_path, 'r', encoding='utf-8') as file:
+            for line in file:
+                    # Process each line as a sentence
+                    words = (line.strip().split())
+                    
+                    for i, word in enumerate(words):
+                        if word not in self.vocabulary:
+                            words[i] = self.unk
+                    
+                    if len(words):
+                        text.append(words)
+
+        return text
+    
+
+    def get_masked_dataset(self, percent_masks_per_line = 0.1, mask_token = '¿'):
+        '''
+        Returns list of lists of strings where each sublist represents a line of text.
+        In each line of text, a percentage of characters will be masked.
+        Also returns list of indices where mask tokens are located. ex. [(i,j,k),(a,b,c)]
+        
+        '''
+        if not self.file_path:
+            raise Exception("No file path provided when initializing Class instance")
+        
+        text = []
+        masked_indices = []
+        #read text to list. text will end up being a list of lists of words
+        with open(self.file_path, 'r', encoding='utf-8') as file:
+            for line in file:
+                    # Process each line as a sentence
+                    words = (line.strip().split())
+                    
+                    for i, word in enumerate(words):
+                        if word not in self.vocabulary:
+                            words[i] = self.unk
+                    
+        # Replace words not in vocabulary with unknown token
+                    for i, word in enumerate(words):
+                        if word not in self.vocabulary:
+                            words[i] = self.unk
+                    
+                    if len(words):
+                        # Mask characters
+
+                        total_chars = sum([len(word) for word in words])
+
+                        chars_to_mask = int(percent_masks_per_line * total_chars)
+
+                        char_indices = set(random.sample(range(0,total_chars), chars_to_mask))
+                        
+                        char_count = 0
+                        for i,word in enumerate(words):
+                            new_word = []
+                            for j, char in enumerate(word):
+                                if char_count in char_indices:
+                                    new_word.append(mask_token)
+                                    masked_indices.append((len(text), i, j))
+                                else:
+                                    new_word.append(char)
+                                char_count += 1
+                            words[i] = ''.join(new_word)
+
+                            
+                        text.append(words)
+
+            return text, masked_indices
+    
 
     def most_likely(self, prob_distribution):
         """

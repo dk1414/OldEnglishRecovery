@@ -56,6 +56,7 @@ def perp_score(model, tokenizer, sentence):
         loss = model(masked_input, labels=labels).loss
     # Remove tensors from GPU memory
     del tensor_input, repeat_input, mask, masked_input, labels
+    torch.cuda.empty_cache()
     return np.exp(loss.item())
 
 
@@ -63,9 +64,7 @@ def perp_score(model, tokenizer, sentence):
 #make predictions for each word with missing characters in dataset
 def predict(model, tokenizer, lm, dataset):
     
-    #TEMP
-    #limit to 15,000 cause of memory issues ill look into later
-    c = 0
+
 
 
 
@@ -76,10 +75,6 @@ def predict(model, tokenizer, lm, dataset):
     progress = 0 #keep track of where we are for terminal print out
     for example in dataset:
         
-        #TEMP see above
-        if c > 15000:
-            return preds, true, m
-        c += 1
 
         if progress % 1000 == 0:
             print(f'Starting line {progress}')
@@ -135,6 +130,8 @@ def analyze_results(preds, true, m, masked_char = '¿'):
     total_correct = 0
 
     correct_by_num_missing = dict()
+    correct_by_char_count = dict()
+    total_by_char_count = dict()
     total_by_num_missing = dict()
 
     for i in range(len(preds)):
@@ -151,17 +148,29 @@ def analyze_results(preds, true, m, masked_char = '¿'):
                 correct_by_num_missing[num_masked_chars] += 1
             else:
                 correct_by_num_missing[num_masked_chars] = 1
+            
+            if len(label) in correct_by_char_count:
+                correct_by_char_count[len(label)] += 1
+            else:
+                correct_by_char_count[len(label)] = 1
         
         if num_masked_chars in total_by_num_missing:
             total_by_num_missing[num_masked_chars] += 1
         else:
             total_by_num_missing[num_masked_chars] = 1
 
+        if len(label) in total_by_char_count:
+            total_by_char_count[len(label)] += 1
+        else:
+            total_by_char_count[len(label)] = 1
 
     print(f'Total acc: {total_correct / len(preds)}')
 
     for key in correct_by_num_missing:
         print(f'Acc for words with {key} chars missing: {correct_by_num_missing[key] / total_by_num_missing[key]}')
+
+    for key in correct_by_char_count:
+        print(f'Acc for words with {key} chars in total: {correct_by_char_count[key] / total_by_char_count[key]}')
     
     print(f'# words with x chars missing: {total_by_num_missing}')
 
@@ -170,20 +179,24 @@ def analyze_results(preds, true, m, masked_char = '¿'):
 
 if __name__ == "__main__":
 
-
+    #running this file 4 times for whole dataset cause my gpu runs out of memory and I have to restart the kernel
 
     tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     bert = BertForMaskedLM.from_pretrained("bert-base-uncased")
 
     #load text and create vocabulary. Just going to say words need to be present at least 5 times to be in vocab
-    lm = LanguageModelHelper(file_path='../data/newtraincorpus.txt', min_freq=5, unk_token = tokenizer.unk_token)
+    lm = LanguageModelHelper(file_path='../data/newtraincorpus1-4.txt', min_freq=5, unk_token = tokenizer.unk_token)
 
     #this is gonna be pretty slow without cuda. Probably like 3 min for 5 lines. With cuda only about a second per line
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     bert.to(device)
+    bert.eval()
 
-    #mask 3% of characters in each line of text
-    dataset = BertDataset(lm,tokenizer.mask_token, percent_masks_per_line=0.03)
+
+
+
+    #mask x% of characters in each line of text
+    dataset = BertDataset(lm,tokenizer.mask_token, percent_masks_per_line=0.2)
 
     #make preds
     output = predict(bert, tokenizer, lm, dataset)
@@ -197,7 +210,7 @@ if __name__ == "__main__":
                'masked': output[2]}
     
     #save results to file
-    save_path = 'bert_results.pkl'
+    save_path = 'bert_results_20_percent.pkl'
     with open(save_path, 'wb') as f:
         pickle.dump(results, f)
 
