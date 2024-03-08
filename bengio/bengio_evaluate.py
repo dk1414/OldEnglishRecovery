@@ -17,12 +17,13 @@ BATCH_SIZE = 128
 H = 100
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print('DEVICE: ', device)
 
 best_trigram_state_dict: dict = torch.load('./models/best_model_3.dat', map_location=torch.device(device))
 best_fivegram_state_dict: dict = torch.load('./models/best_fivegram_model_3.dat', map_location=torch.device(device))
 best_fivegram_char_state_dict: dict = torch.load('./models/best_char_fivegram_model_7.dat', map_location=torch.device(device))
 
-def create_dataloader(path: str, use_char_map = False) -> tuple[DataLoader, set, dict]:
+def create_dataloader(path: str, use_char_map = False) -> tuple[DataLoader, set, defaultdict]:
     """Loads in information from the appropriate corpus and joins it with the appropriate token to id mapping
 
     Args:
@@ -64,8 +65,8 @@ def create_dataloader(path: str, use_char_map = False) -> tuple[DataLoader, set,
     target_array = np.array(target_array)
     total_set = np.concatenate((context_array, target_array), axis=1)
     
-    available_workers = multiprocessing.cpu_count()
-    loader = DataLoader(total_set, batch_size=BATCH_SIZE, num_workers=available_workers)
+    #available_workers = multiprocessing.cpu_count()
+    loader = DataLoader(total_set, batch_size=BATCH_SIZE, num_workers=1)
 
     return loader, vocab, word_to_id_mappings
 
@@ -100,6 +101,7 @@ def log_probs_to_accuracy(log_probs: torch.Tensor, labels: torch.Tensor) -> torc
 
 def load_model(state_dict: dict) -> BengioModel:
     model = BengioModel(len(vocab), EMBEDDING_DIM, CONTEXT_SIZE, H)
+    model.to(device)
     model.load_state_dict(state_dict)
     model.eval()
 
@@ -232,9 +234,6 @@ def predict_dataset(model: BengioModel, file_path: str, vocab: set, word_to_id_m
 
     return preds, true, m
 
-
-
-
 if __name__ == '__main__':
     # path = sys.argv[1]
 
@@ -250,7 +249,15 @@ if __name__ == '__main__':
     # out = predict_sentence(model, test_sentence, vocab, word_to_id_mappings, device)
     # print(out)
 
-    preds, true, m = predict_dataset(model, '../Srilm/newtestcorpus.txt', vocab, word_to_id_mappings, device)
-    print(random.sample(zip(preds, true, m), 3))
+    preds, true, m = predict_dataset(model, '../Srilm/newtraincorpus.txt', vocab, word_to_id_mappings, device, percent_masks_per_line=0.20)
+
+    results = {
+        'preds': preds,
+        'true': true,
+        'masked': m
+    }
+    
+    with open('./results/bengio_train_results_20_percent.pkl', 'wb') as f:
+        pickle.dump(results, f)
 
     
