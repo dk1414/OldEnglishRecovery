@@ -8,6 +8,7 @@ import multiprocessing
 from tqdm import tqdm
 import numpy as np
 import pickle
+import random
 from collections import defaultdict
 
 EMBEDDING_DIM = 200
@@ -127,21 +128,20 @@ def evaluate(model: BengioModel, dataloader: DataLoader, device) -> tuple[float,
 
 def get_sorted_candidates(target: str, vocab: set, word_to_id_mappings: defaultdict, log_probs: torch.Tensor, n=5) -> list[str]:
     def matches_target(w: str) -> bool:
-        if len(w) != len(target) or w == '<UNK>':
+        if len(w) != len(target):
             return False
         for c1, c2 in zip(w, target):
-            if c1 != c2 and c2 != '@':
+            if c1 != c2 and c2 != '¿':
                 return False
         return True
     
     filtered_vocab = list(filter(matches_target, vocab))
-    print(filtered_vocab)
     filtered_vocab.sort(key = lambda w: log_probs[0,word_to_id_mappings[w]], reverse = True)
     filtered_vocab = filtered_vocab[0:n]
 
     return filtered_vocab
 
-def predict_sentence(model: BengioModel, sentence: str, vocab: set, word_to_id_mappings: defaultdict, device: str, use_char_map = False) -> list[list[str]]:
+def predict_sentence(model: BengioModel, sentence: str, vocab: set, word_to_id_mappings: defaultdict, device: str, use_char_map = False, **kwargs) -> list[tuple[int, list[str]]]:
     sentence = sentence.strip().split()
     if use_char_map:
         # turn list of word tokens into list of char tokens
@@ -153,27 +153,86 @@ def predict_sentence(model: BengioModel, sentence: str, vocab: set, word_to_id_m
         if i+CONTEXT_SIZE >= len(sentence):
             break
         word = sentence[i+CONTEXT_SIZE]
-        if '@' not in word:
+        if '¿' not in word:
             continue # only examine those for which the target is a word with missing chars
 
         context_extract = [word_to_id_mappings[sentence[j]] for j in range(i, i+CONTEXT_SIZE)]
-        targets_masked.append(word)
-
+        
+        targets_masked.append((i+CONTEXT_SIZE, word))
         context_array.append(context_extract)
 
     context_array = np.array(context_array)
 
     results = []
     with torch.no_grad():
-        for i, context in enumerate(context_array):
+        for i, target_and_index in enumerate(targets_masked):
+            target = target_and_index[1]
+            index = target_and_index[0] # refers to the position of the target in the masked sentence
+            context = context_array[i]
             context_tensor: torch.LongTensor = torch.from_numpy(context[0:CONTEXT_SIZE]).type(torch.LongTensor)
             context_tensor = context_tensor.to(device)
 
             log_probs: torch.Tensor = model(context_tensor)
             
-            results.append(get_sorted_candidates(targets_masked[i], vocab, word_to_id_mappings, log_probs))
+            results.append((index, get_sorted_candidates(target, vocab, word_to_id_mappings, log_probs, **kwargs)))
 
     return results
+
+def predict_dataset(model: BengioModel, file_path: str, vocab: set, word_to_id_mappings: defaultdict, device: str, percent_masks_per_line = 0.1, **kwargs) -> tuple[list[str], list[str],list[str]]:
+    original_text = []
+    masked_text = []
+    masked_indices = []
+
+    with open(file_path, 'r', encoding='utf-8') as file:
+        for line in tqdm(file, desc='Reading in dataset for masked prediction'):
+            sentence = line.strip().split()
+
+            for i, word in enumerate(sentence):
+                if word not in vocab:
+                    sentence[i] = '<UNK>'
+
+            if len(sentence):
+                original_text.append(sentence.copy())
+
+                total_chars = sum([len(word) for word in sentence])
+                chars_to_mask = int(percent_masks_per_line * total_chars)
+                masked_indices_for_sentence = set(random.sample(range(0, total_chars), chars_to_mask))
+
+                char_count = 0
+                for i, word in enumerate(sentence):
+                    new_word = []
+                    for j, char in enumerate(word):
+                        if char_count in masked_indices_for_sentence:
+                            new_word.append('¿')
+                            masked_indices.append((len(masked_text), i, j))
+                        else:
+                            new_word.append(char)
+                        char_count += 1
+                    sentence[i] = ''.join(new_word)
+
+                masked_text.append(sentence)
+                
+
+    preds = []
+    true = []
+    m = []
+    for i, masked_sentence in tqdm(enumerate(masked_text), desc='Running inference on dataset'):
+        masked_word_locations = filter(lambda item: item[0] == i, masked_indices)
+        masked_word_locations = list(map(lambda item: (item[1], item[2]), masked_word_locations))
+
+        out = predict_sentence(model, ' '.join(masked_sentence), vocab, word_to_id_mappings, device, n=1)
+
+        for p in out:
+            word_index = p[0]
+            prediction = p[1][0]
+
+            preds.append(prediction)
+            true.append(original_text[i][word_index])
+            m.append(masked_sentence[word_index])
+
+    return preds, true, m
+
+
 
 
 if __name__ == '__main__':
@@ -187,6 +246,11 @@ if __name__ == '__main__':
     # acc, loss = evaluate(model, dataloader, device)
     # print("Vocab Size: {}; Accuracy: {}; Loss: {}".format(len(vocab), acc, loss))
 
-    test_sentence = "gravity hurts you made it so swe@t when i wo@e up on the concrete"
-    out = predict_sentence(model, test_sentence, vocab, word_to_id_mappings, device)
-    print(out)
+    # test_sentence = "gravity hurts you made it so swe¿t when i wo¿e up on the concrete"
+    # out = predict_sentence(model, test_sentence, vocab, word_to_id_mappings, device)
+    # print(out)
+
+    preds, true, m = predict_dataset(model, '../Srilm/newtestcorpus.txt', vocab, word_to_id_mappings, device)
+    print(random.sample(zip(preds, true, m), 3))
+
+    
